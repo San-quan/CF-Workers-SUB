@@ -704,17 +704,20 @@ function computeDiff(oldData, newData) {
 
 function getEnhancedClashConfig() {
   return `
+########################################
+#  Zero-Leak Enhanced Clash Config
+########################################
 dns:
   enable: true
   ipv6: false
   enhanced-mode: fake-ip
-  fake-ip-range: 198.18.0.1/16
+  fake-ip-range: 10.255.0.0/16          # 非特征段
   use-hosts: true
   nameserver:
-    - https://dns.google/dns-query
-    - https://cloudflare-dns.com/dns-query
+    - https://dns.cloudflare.com/dns-query#h3=true
+    - https://dns.google/dns-query#h3=true
   fallback:
-    - tls://1.1.1.1
+    - https://1.1.1.1/dns-query#h3=true
   fallback-filter:
     geoip: true
     ipcidr:
@@ -723,21 +726,28 @@ dns:
     - '*.lan'
     - localhost
     - '*.msftncsi.com'
+    - '*.apple.com'          # Apple 服务直连
 
-rules:
-  - DOMAIN-SUFFIX,google.com,PROXY
-  - GEOIP,CN,DIRECT
-  - MATCH,REJECT  # 最终匹配拒绝（断网）
+proxies:
+  # 占位符，实际节点由订阅转换填充
+  - {name: HK-01, type: vless, server: 127.0.0.1, port: 443, uuid: 93a56329-356f-18cd-ddef-bc584e0be898, tls: true, network: ws, ws-opts: {path: /vless}}
+  - {name: Trojan-01, type: trojan, server: 127.0.0.1, port: 443, password: 93a56329-356f-18cd-ddef-bc584e0be898, sni: 127.0.0.1, skip-cert-verify: true}
 
 proxy-groups:
   - name: "养号组"
     type: fallback
-    proxies: [proxy1, proxy2]  # 替换为你的节点名
+    proxies: [HK-01, Trojan-01]   # 实际由订阅转换填充
     url: http://www.gstatic.com/generate_204
     interval: 300
     tolerance: 50
     lazy: true
-    fallback: REJECT  # 全死即断网，无DIRECT
+    fallback: REJECT            # 全死即断网，无 DIRECT
+
+rules:
+  - DOMAIN-SUFFIX,google.com,养号组
+  - GEOIP,CN,DIRECT
+  - DOMAIN-SUFFIX,cn,DIRECT
+  - MATCH,REJECT               # 最终兜底断网
 
 tun:
   enable: true
@@ -750,10 +760,13 @@ sniffer:
   sniff:
     - tls
     - http
+  skip-domain:
+    - "Mijia Cloud"
+    - "*.apple.com"
 
 experimental:
   auto-update: true
-  core-url: https://github.com/MetaCubeX/mihomo/releases/download/alpha-smart-g3c0a1d4/mihomo-alpha-smart-g3c0a1d4  # 最新Meta内核
+  core-url: https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo-linux-amd64.tar.gz
   check-current-version: true
 
 external-controller: 127.0.0.1:9090
